@@ -1,4 +1,4 @@
-namespace DOT_NET_API.Model
+namespace dot_net_learning_api.Model
 {
     public partial class User
     {

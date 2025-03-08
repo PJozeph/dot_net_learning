@@ -1,9 +1,9 @@
 using AutoMapper;
-using DOT_NET_API.Model;
 using dot_net_learning_api.DTO;
+using dot_net_learning_api.Model;
 using Microsoft.AspNetCore.Mvc;
 
-namespace dot_net_api.controllers;
+namespace dot_net_learning_api.controllers;
 
 [ApiController]
 [Route("[controller]")]

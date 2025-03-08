@@ -1,8 +1,8 @@
 using DOT_NET_API;
-using DOT_NET_API.Model;
+using dot_net_learning_api.Model;
 using Microsoft.EntityFrameworkCore;
 
-namespace dot_net_api.Data{
+namespace dot_net_learning_api.Data{
     public class DataContextEntityFramework : DbContext
     {
         private readonly IConfiguration _configuration;

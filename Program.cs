@@ -1,5 +1,6 @@
 
 using dot_net_api.controllers;
+using dot_net_learning_api.controllers;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();

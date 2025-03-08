@@ -1,5 +1,6 @@
-using dot_net_api.Data;
-using DOT_NET_API.Model;
+using dot_net_learning_api.controllers;
+using dot_net_learning_api.Data;
+using dot_net_learning_api.Model;
 
 namespace dot_net_api.controllers{
 

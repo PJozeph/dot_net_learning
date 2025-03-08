@@ -1,6 +1,7 @@
-using DOT_NET_API.Model;
 
-namespace dot_net_api.controllers {
+using dot_net_learning_api.Model;
+
+namespace dot_net_learning_api.controllers {
     public interface IUserRepository {
         bool AddUser(User user);
         bool RemoveUser(int userId);
