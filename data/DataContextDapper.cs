@@ -23,7 +23,7 @@ namespace dot_net_api.Data
          public T LoadSingleData<T> (string sql)
         {
             using IDbConnection connection = new SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
-            return connection.QuerySingle<T>(sql);
+            return connection.QuerySingleOrDefault<T>(sql);
         }
 
         public bool SaveData<T> (string sql)
@@ -36,6 +36,26 @@ namespace dot_net_api.Data
         {
             using IDbConnection connection = new SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
             return connection.Execute(sql);
+        }
+
+        public bool executeSqlWithParams<T> (string sql, List<SqlParameter> parameters)
+        {
+            SqlCommand commandWithParams = new SqlCommand(sql);
+
+            using SqlConnection connection = new SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+            foreach (var param in parameters)
+            {
+                commandWithParams.Parameters.Add(param);
+            }
+            connection.Open();
+
+            commandWithParams.Connection = connection;
+            int rowsEffected = commandWithParams.ExecuteNonQuery();
+
+            connection.Close();
+            return rowsEffected > 0;
+
+
         }
 
     }
