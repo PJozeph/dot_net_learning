@@ -54,8 +54,6 @@ namespace dot_net_api.Data
 
             connection.Close();
             return rowsEffected > 0;
-
-
         }
 
     }

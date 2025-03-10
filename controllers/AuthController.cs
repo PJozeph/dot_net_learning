@@ -32,19 +32,13 @@ namespace dot_net_learning_api.controllers
                 var user = _dapper.LoadSingleData<User>(sqlCheckUserPresent);
                 if (user == null)
                 {
-                    byte[] passwordSalt = new byte[128 / 8];
+                    byte[] randomSalt = new byte[128 / 8];
                     using (var rng = RandomNumberGenerator.Create())
                     {
-                        rng.GetBytes(passwordSalt);
+                        rng.GetBytes(randomSalt);
                     }
-                    string passwordPlusString = _config.GetSection("AppSettings:PasswordKey").Value + Convert.ToBase64String(passwordSalt);
-                    byte[] passwordHash = KeyDerivation.Pbkdf2(
-                        password: userRegistrationDto.Password,
-                        salt: Encoding.ASCII.GetBytes(passwordPlusString),
-                        prf: KeyDerivationPrf.HMACSHA1,
-                        iterationCount: 10000,
-                        numBytesRequested: 256 / 8
-                    );
+
+                    byte[] passwordHash = GetPasswordHash(userRegistrationDto.Password, randomSalt);
 
                     string sqlAddUser = $@"
                         INSERT INTO DotNetCourseDatabase.TutorialAppSchema.Auth 
@@ -54,12 +48,10 @@ namespace dot_net_learning_api.controllers
                     ";
 
                     List<SqlParameter> parameters = new List<SqlParameter>();
-
                     SqlParameter passwordHasParam = new SqlParameter("@PasswordHash", SqlDbType.VarBinary);
                     passwordHasParam.Value = passwordHash;
-
                     SqlParameter passwordSaltParam = new SqlParameter("@PasswordSalt", SqlDbType.VarBinary);
-                    passwordSaltParam.Value = passwordSalt;
+                    passwordSaltParam.Value = randomSalt;
 
                     parameters.Add(passwordHasParam);
                     parameters.Add(passwordSaltParam);
@@ -67,8 +59,12 @@ namespace dot_net_learning_api.controllers
                     bool extecuted = _dapper.executeSqlWithParams<User>(sqlAddUser, parameters);
                     if (extecuted)
                     {
-                        return Ok();
-
+                        var isSaved = _dapper.SaveData<User>($"INSERT INTO DotNetCourseDatabase.TutorialAppSchema.Users (FirstName, LastName, Email, Gender, Active) VALUES ('{userRegistrationDto.FirstName}', '{userRegistrationDto.LastName}', '{userRegistrationDto.Email}', '{userRegistrationDto.Gender}','{1}')");
+                        if (isSaved)
+                        {
+                            return Ok();
+                        }
+                        throw new Exception("User faild to created");
                     }
                     throw new Exception("User not added");
                 }
@@ -80,8 +76,35 @@ namespace dot_net_learning_api.controllers
         [HttpPost("Login")]
         public IActionResult Login(UserForLoginDto user)
         {
-            return Ok();
 
+            string sqlCheckUserPresent = $"SELECT * FROM DotNetCourseDatabase.TutorialAppSchema.Auth WHERE Email = '{user.Email}'";
+            UserForLoginConfirmationDto userConfirmation = _dapper.LoadSingleData<UserForLoginConfirmationDto>(sqlCheckUserPresent);
+
+            byte[] passwordHash = GetPasswordHash(user.Password, userConfirmation.PasswordSalt);
+
+            if (passwordHash.SequenceEqual(userConfirmation.PasswordHash))
+            {
+                return Ok();
+            }
+            else
+            {
+                return Unauthorized();
+            }
+
+        }
+
+        private byte[] GetPasswordHash(string password, byte[] passwordSalt)
+        {
+            string passwordSaltPlusString = _config.GetSection("AppSettings:PasswordKey").Value +
+                Convert.ToBase64String(passwordSalt);
+
+            return KeyDerivation.Pbkdf2(
+                password: password,
+                salt: Encoding.ASCII.GetBytes(passwordSaltPlusString),
+                prf: KeyDerivationPrf.HMACSHA256,
+                iterationCount: 1000000,
+                numBytesRequested: 256 / 8
+            );
         }
     }
 
