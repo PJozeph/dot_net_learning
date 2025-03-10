@@ -6,6 +6,7 @@ using System.Text;
 using dot_net_api.Data;
 using dot_net_learning_api.DTO;
 using dot_net_learning_api.Model;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cryptography.KeyDerivation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
@@ -14,6 +15,9 @@ using Microsoft.IdentityModel.Tokens;
 namespace dot_net_learning_api.controllers
 {
 
+    [Authorize]
+    [ApiController]
+    [Route("[controller]")]
     public class AuthController : ControllerBase
     {
 
@@ -26,6 +30,7 @@ namespace dot_net_learning_api.controllers
             _dapper = new DataContextDapper(config);
         }
 
+        [AllowAnonymous]
         [HttpPost("SignUp")]
         public IActionResult Register(UserForRegistrationDto userRegistrationDto)
         {
@@ -69,7 +74,12 @@ namespace dot_net_learning_api.controllers
                             string token = CreateToken(savedUser.UserId);
                             if (token != null)
                             {
-                                return Ok(token);
+                                return Ok(
+                                    new Dictionary<string, string>
+                                    {
+                                        { "token", token },
+                                    }
+                                );
                             }
                             throw new Exception("Token not created");
                         }
@@ -82,10 +92,10 @@ namespace dot_net_learning_api.controllers
             throw new Exception("Passwords do not match");
         }
 
+        [AllowAnonymous]
         [HttpPost("Login")]
         public IActionResult Login(UserForLoginDto user)
         {
-
             string sqlCheckUserPresent = $"SELECT * FROM DotNetCourseDatabase.TutorialAppSchema.Auth WHERE Email = '{user.Email}'";
             UserForLoginConfirmationDto userConfirmation = _dapper.LoadSingleData<UserForLoginConfirmationDto>(sqlCheckUserPresent);
 
@@ -93,13 +103,35 @@ namespace dot_net_learning_api.controllers
 
             if (passwordHash.SequenceEqual(userConfirmation.PasswordHash))
             {
-                return Ok();
+                string userIDSql = $"SELECT UserId FROM DotNetCourseDatabase.TutorialAppSchema.Users WHERE Email = '{user.Email}'";
+                int userFromDb = _dapper.LoadSingleData<int>(userIDSql);
+                return Ok(
+                    new Dictionary<string, string>
+                    {
+                        { "userId", CreateToken(userFromDb) },
+                    }
+                );
             }
             else
             {
                 return Unauthorized();
             }
 
+        }
+
+        [HttpGet("RefreshToken")]
+        public IActionResult RefreshToken()
+        {
+            string userId = User.FindFirst("userId")?.Value + "";
+            string userIDSql = $"SELECT UserId FROM DotNetCourseDatabase.TutorialAppSchema.Users WHERE UserId = {userId}";
+            int userFromDb = _dapper.LoadSingleData<int>(userIDSql);
+            
+            return Ok(
+                new Dictionary<string, string>
+                {
+                    { "userId", CreateToken(userFromDb) },
+                }
+            );
         }
 
         private byte[] GetPasswordHash(string password, byte[] passwordSalt)
