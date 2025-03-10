@@ -1,4 +1,6 @@
 using System.Data;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using dot_net_api.Data;
@@ -7,6 +9,7 @@ using dot_net_learning_api.Model;
 using Microsoft.AspNetCore.Cryptography.KeyDerivation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
+using Microsoft.IdentityModel.Tokens;
 
 namespace dot_net_learning_api.controllers
 {
@@ -62,7 +65,13 @@ namespace dot_net_learning_api.controllers
                         var isSaved = _dapper.SaveData<User>($"INSERT INTO DotNetCourseDatabase.TutorialAppSchema.Users (FirstName, LastName, Email, Gender, Active) VALUES ('{userRegistrationDto.FirstName}', '{userRegistrationDto.LastName}', '{userRegistrationDto.Email}', '{userRegistrationDto.Gender}','{1}')");
                         if (isSaved)
                         {
-                            return Ok();
+                            User savedUser = _dapper.LoadSingleData<User>($"SELECT * FROM DotNetCourseDatabase.TutorialAppSchema.Users WHERE Email = '{userRegistrationDto.Email}'");
+                            string token = CreateToken(savedUser.UserId);
+                            if (token != null)
+                            {
+                                return Ok(token);
+                            }
+                            throw new Exception("Token not created");
                         }
                         throw new Exception("User faild to created");
                     }
@@ -105,6 +114,37 @@ namespace dot_net_learning_api.controllers
                 iterationCount: 1000000,
                 numBytesRequested: 256 / 8
             );
+        }
+
+        private string CreateToken(int userId)
+        {
+            Claim[] claims = new Claim[] {
+                new Claim("userId", userId.ToString())
+            };
+
+            string? tokenKeyString = _config.GetSection("AppSettings:TokenKey").Value;
+
+            SymmetricSecurityKey tokenKey = new SymmetricSecurityKey(
+                    Encoding.UTF8.GetBytes(
+                        tokenKeyString != null ? tokenKeyString : ""
+                    )
+                );
+            SigningCredentials credentials = new SigningCredentials(
+                    tokenKey,
+                    SecurityAlgorithms.HmacSha512Signature
+                );
+
+            SecurityTokenDescriptor descriptor = new SecurityTokenDescriptor()
+            {
+                Subject = new ClaimsIdentity(claims),
+                SigningCredentials = credentials,
+                Expires = DateTime.Now.AddDays(1)
+            };
+
+            JwtSecurityTokenHandler tokenHandler = new JwtSecurityTokenHandler();
+            SecurityToken token = tokenHandler.CreateToken(descriptor);
+
+            return tokenHandler.WriteToken(token);
         }
     }
 
