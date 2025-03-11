@@ -7,7 +7,7 @@ namespace dot_net_learning_api.models
         public string PostTitle { get; set; }
         public string PostContent { get; set; }
         public DateTime PostCreated { get; set; }
-        private DateTime PostUpdated { get; set; }
+        public DateTime PostUpdated { get; set; }
 
         public Post()
         {
