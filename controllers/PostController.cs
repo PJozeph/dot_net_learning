@@ -23,6 +23,18 @@ namespace dot_net_learning_api.controllers
         }
 
         
+        [HttpGet("PostsBySearch/{searchParam}")]
+        public IActionResult getUserPostWithToken(string searchParam)
+        {
+            string userId = User.FindFirst("userId")?.Value + "";
+            string searchInTitleAndContentSQlQueyr = $"SELECT * FROM DotNetCourseDatabase.TutorialAppSchema.Posts WHERE UserId = '{userId}' AND (PostTitle LIKE '%{searchParam}%' OR PostContent LIKE '%{searchParam}%')";
+            IEnumerable<Post> postList = _dataContextDapper.LoadData<Post>(searchInTitleAndContentSQlQueyr);
+            if (postList == null)
+            {
+                return NotFound();
+            }
+            return Ok(postList);
+        }
 
 
         [HttpGet("GetUserPostsWithToken")]
