@@ -1,16 +1,12 @@
 using System.Data;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
 using System.Security.Cryptography;
-using System.Text;
 using dot_net_api.Data;
 using dot_net_learning_api.DTO;
 using dot_net_learning_api.Model;
+using dot_net_learning_api.utils;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Cryptography.KeyDerivation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
-using Microsoft.IdentityModel.Tokens;
 
 namespace dot_net_learning_api.controllers
 {
@@ -23,11 +19,13 @@ namespace dot_net_learning_api.controllers
 
         private readonly DataContextDapper _dapper;
         private IConfiguration _config;
+        private AuthUtils _authUtils;
 
         public AuthController(IConfiguration config)
         {
             _config = config;
             _dapper = new DataContextDapper(config);
+            _authUtils = new AuthUtils(config);
         }
 
         [AllowAnonymous]
@@ -46,8 +44,7 @@ namespace dot_net_learning_api.controllers
                         rng.GetBytes(randomSalt);
                     }
 
-                    byte[] passwordHash = GetPasswordHash(userRegistrationDto.Password, randomSalt);
-
+                    byte[] passwordHash = _authUtils.GetPasswordHash(userRegistrationDto.Password, randomSalt);
                     string sqlAddUser = $@"
                         INSERT INTO DotNetCourseDatabase.TutorialAppSchema.Auth 
                         (Email, PasswordHash, PasswordSalt) 
@@ -71,7 +68,7 @@ namespace dot_net_learning_api.controllers
                         if (isSaved)
                         {
                             User savedUser = _dapper.LoadSingleData<User>($"SELECT * FROM DotNetCourseDatabase.TutorialAppSchema.Users WHERE Email = '{userRegistrationDto.Email}'");
-                            string token = CreateToken(savedUser.UserId);
+                            string token = _authUtils.CreateToken(savedUser.UserId);
                             if (token != null)
                             {
                                 return Ok(
@@ -99,7 +96,7 @@ namespace dot_net_learning_api.controllers
             string sqlCheckUserPresent = $"SELECT * FROM DotNetCourseDatabase.TutorialAppSchema.Auth WHERE Email = '{user.Email}'";
             UserForLoginConfirmationDto userConfirmation = _dapper.LoadSingleData<UserForLoginConfirmationDto>(sqlCheckUserPresent);
 
-            byte[] passwordHash = GetPasswordHash(user.Password, userConfirmation.PasswordSalt);
+            byte[] passwordHash = _authUtils.GetPasswordHash(user.Password, userConfirmation.PasswordSalt);
 
             if (passwordHash.SequenceEqual(userConfirmation.PasswordHash))
             {
@@ -108,7 +105,7 @@ namespace dot_net_learning_api.controllers
                 return Ok(
                     new Dictionary<string, string>
                     {
-                        { "userId", CreateToken(userFromDb) },
+                        { "userId", _authUtils.CreateToken(userFromDb) },
                     }
                 );
             }
@@ -125,58 +122,13 @@ namespace dot_net_learning_api.controllers
             string userId = User.FindFirst("userId")?.Value + "";
             string userIDSql = $"SELECT UserId FROM DotNetCourseDatabase.TutorialAppSchema.Users WHERE UserId = {userId}";
             int userFromDb = _dapper.LoadSingleData<int>(userIDSql);
-            
+
             return Ok(
                 new Dictionary<string, string>
                 {
-                    { "userId", CreateToken(userFromDb) },
+                    { "userId", _authUtils.CreateToken(userFromDb) },
                 }
             );
-        }
-
-        private byte[] GetPasswordHash(string password, byte[] passwordSalt)
-        {
-            string passwordSaltPlusString = _config.GetSection("AppSettings:PasswordKey").Value +
-                Convert.ToBase64String(passwordSalt);
-
-            return KeyDerivation.Pbkdf2(
-                password: password,
-                salt: Encoding.ASCII.GetBytes(passwordSaltPlusString),
-                prf: KeyDerivationPrf.HMACSHA256,
-                iterationCount: 1000000,
-                numBytesRequested: 256 / 8
-            );
-        }
-
-        private string CreateToken(int userId)
-        {
-            Claim[] claims = new Claim[] {
-                new Claim("userId", userId.ToString())
-            };
-
-            string? tokenKeyString = _config.GetSection("AppSettings:TokenKey").Value;
-
-            SymmetricSecurityKey tokenKey = new SymmetricSecurityKey(
-                    Encoding.UTF8.GetBytes(
-                        tokenKeyString != null ? tokenKeyString : ""
-                    )
-                );
-            SigningCredentials credentials = new SigningCredentials(
-                    tokenKey,
-                    SecurityAlgorithms.HmacSha512Signature
-                );
-
-            SecurityTokenDescriptor descriptor = new SecurityTokenDescriptor()
-            {
-                Subject = new ClaimsIdentity(claims),
-                SigningCredentials = credentials,
-                Expires = DateTime.Now.AddDays(1)
-            };
-
-            JwtSecurityTokenHandler tokenHandler = new JwtSecurityTokenHandler();
-            SecurityToken token = tokenHandler.CreateToken(descriptor);
-
-            return tokenHandler.WriteToken(token);
         }
     }
 
